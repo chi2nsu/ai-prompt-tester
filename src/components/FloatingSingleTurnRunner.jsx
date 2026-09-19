@@ -40,16 +40,16 @@ export default function FloatingSingleTurnRunner({
           </div>
           <div className="multi-turn-float-compose">
             <div className="single-turn-runner-options">
-              <div className="single-turn-model-control">
+              <div className="floating-model-control">
                 <label className="multi-turn-float-session">
                   <span>모델 선택</span>
                   <select value={selectedModelId || ''} onChange={event => { onModelChange(event.target.value); setIsModelSettingsOpen(false); }} disabled={isRunning}>
                     {models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
                   </select>
                 </label>
-                <button type="button" className="btn-icon single-turn-model-settings-button" onClick={() => setIsModelSettingsOpen(previous => !previous)} disabled={isRunning} aria-expanded={isModelSettingsOpen} aria-label="모델 전송 설정" title="모델 전송 설정">⚙</button>
-                {isModelSettingsOpen && selectedModel && <div className="single-turn-model-settings-panel" role="dialog" aria-label={`${selectedModel.name} 전송 설정`}>
-                  <div className="single-turn-model-settings-header"><strong>{selectedModel.name} 전송 설정</strong><button type="button" className="btn-icon" onClick={() => setIsModelSettingsOpen(false)} aria-label="모델 설정 닫기">✕</button></div>
+                <button type="button" className="btn-icon floating-model-settings-button" onClick={() => setIsModelSettingsOpen(previous => !previous)} disabled={isRunning} aria-expanded={isModelSettingsOpen} aria-label="모델 전송 설정" title="모델 전송 설정">⚙</button>
+                {isModelSettingsOpen && selectedModel && <div className="floating-model-settings-panel" role="dialog" aria-label={`${selectedModel.name} 전송 설정`}>
+                  <div className="floating-model-settings-header"><strong>{selectedModel.name} 전송 설정</strong><button type="button" className="btn-icon" onClick={() => setIsModelSettingsOpen(false)} aria-label="모델 설정 닫기">✕</button></div>
                   <ModelConfigOptions model={selectedModel} config={modelConfig} onChange={onModelConfigChange} disabled={isRunning} />
                 </div>}
               </div>

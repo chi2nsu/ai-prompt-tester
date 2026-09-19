@@ -4275,8 +4275,12 @@ function App() {
               models={AVAILABLE_MODELS}
               selectedModelId={selectedModels[0] || AVAILABLE_MODELS[0]?.id}
               onModelChange={handleFloatingModelChange}
-              thinkingLevel={modelConfigs[selectedModels[0]]?.thinkingLevel || 'none'}
-              onThinkingLevelChange={thinkingLevel => setModelConfigs(previous => ({ ...previous, [selectedModels[0]]: { ...previous[selectedModels[0]], thinkingLevel } }))}
+              modelConfig={modelConfigs[selectedModels[0] || AVAILABLE_MODELS[0]?.id] || {}}
+              onModelConfigChange={(key, value) => {
+                const modelId = selectedModels[0] || AVAILABLE_MODELS[0]?.id;
+                if (!modelId) return;
+                setModelConfigs(previous => ({ ...previous, [modelId]: { ...previous[modelId], [key]: value } }));
+              }}
               isModelLocked={multiTurnHasConversation}
               sessionCount={resultCount}
               onSessionCountChange={value => setResultCount(Math.min(10, Math.max(1, parseInt(value) || 1)))}

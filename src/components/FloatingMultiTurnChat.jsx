@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import ModelConfigOptions from './ModelConfigOptions';
+
 export default function FloatingMultiTurnChat({
   isOpen,
   onToggle,
@@ -5,8 +8,8 @@ export default function FloatingMultiTurnChat({
   models,
   selectedModelId,
   onModelChange,
-  thinkingLevel,
-  onThinkingLevelChange,
+  modelConfig,
+  onModelConfigChange,
   isModelLocked,
   sessionCount,
   onSessionCountChange,
@@ -36,11 +39,10 @@ export default function FloatingMultiTurnChat({
   canGenerate,
   hasStarted,
 }) {
+  const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
   const activeSession = sessions.find(session => session.key === activeSessionKey) || sessions[0];
   const isAutoMode = mode === 'auto';
   const selectedModel = models.find(model => model.id === selectedModelId);
-  const thinkingLevels = selectedModel?.thinkingLevels || ['none', 'minimal', 'low', 'medium', 'high'];
-  const selectedThinkingLevel = thinkingLevels.includes(thinkingLevel) ? thinkingLevel : (selectedModel?.defaultThinkingLevel || 'none');
 
   return (
     <aside className={`multi-turn-float ${isOpen ? 'is-open' : ''}`} aria-label="멀티턴 대화 입력">
@@ -80,18 +82,19 @@ export default function FloatingMultiTurnChat({
           </div>
 
           <div className="multi-turn-float-compose">
-            <label className="multi-turn-float-session">
-              <span>모델 선택</span>
-              <select value={selectedModelId || ''} onChange={event => onModelChange(event.target.value)} disabled={isModelLocked || isRunning}>
-                {models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
-              </select>
-            </label>
-            {selectedModel?.provider === 'Google' && <label className="multi-turn-float-session-count">
-              <span>Thinking level</span>
-              <select value={selectedThinkingLevel} onChange={event => onThinkingLevelChange(event.target.value)} disabled={isModelLocked || isRunning}>
-                {thinkingLevels.map(level => <option key={level} value={level}>{level}</option>)}
-              </select>
-            </label>}
+            <div className="floating-model-control">
+              <label className="multi-turn-float-session">
+                <span>모델 선택</span>
+                <select value={selectedModelId || ''} onChange={event => { onModelChange(event.target.value); setIsModelSettingsOpen(false); }} disabled={isModelLocked || isRunning}>
+                  {models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
+                </select>
+              </label>
+              <button type="button" className="btn-icon floating-model-settings-button" onClick={() => setIsModelSettingsOpen(previous => !previous)} disabled={isModelLocked || isRunning} aria-expanded={isModelSettingsOpen} aria-label="모델 전송 설정" title="모델 전송 설정">⚙</button>
+              {isModelSettingsOpen && selectedModel && <div className="floating-model-settings-panel" role="dialog" aria-label={`${selectedModel.name} 전송 설정`}>
+                <div className="floating-model-settings-header"><strong>{selectedModel.name} 전송 설정</strong><button type="button" className="btn-icon" onClick={() => setIsModelSettingsOpen(false)} aria-label="모델 설정 닫기">✕</button></div>
+                <ModelConfigOptions model={selectedModel} config={modelConfig} onChange={onModelConfigChange} disabled={isModelLocked || isRunning} />
+              </div>}
+            </div>
             <label className="multi-turn-float-session-count">
               <span>세션 진행 수</span>
               <select value={sessionCount} onChange={event => onSessionCountChange(event.target.value)} disabled={isSessionCountLocked || isRunning}>

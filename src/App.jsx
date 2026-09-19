@@ -3742,8 +3742,12 @@ function App() {
             models={AVAILABLE_MODELS}
             selectedModelId={selectedModels[0] || AVAILABLE_MODELS[0]?.id}
             onModelChange={handleFloatingModelChange}
-            thinkingLevel={modelConfigs[selectedModels[0]]?.thinkingLevel || 'none'}
-            onThinkingLevelChange={thinkingLevel => setModelConfigs(previous => ({ ...previous, [selectedModels[0]]: { ...previous[selectedModels[0]], thinkingLevel } }))}
+            modelConfig={modelConfigs[selectedModels[0] || AVAILABLE_MODELS[0]?.id] || {}}
+            onModelConfigChange={(key, value) => {
+              const modelId = selectedModels[0] || AVAILABLE_MODELS[0]?.id;
+              if (!modelId) return;
+              setModelConfigs(previous => ({ ...previous, [modelId]: { ...previous[modelId], [key]: value } }));
+            }}
             resultCount={resultCount}
             onResultCountChange={count => setResultCount(Math.min(10, Math.max(1, count || 1)))}
             presets={savedMappings.filter(mapping => mapping.scenarioId === manualActiveScenario.id)}

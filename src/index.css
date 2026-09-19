@@ -645,10 +645,57 @@ select:focus {
 
 .single-turn-runner-options {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(118px, 0.5fr));
+  grid-template-columns: minmax(220px, 1fr) minmax(118px, 0.5fr);
   gap: 10px;
   min-width: 0;
   flex: 1 1 360px;
+}
+
+.single-turn-model-control {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px;
+}
+
+.single-turn-model-control .multi-turn-float-session {
+  width: auto;
+  min-width: 0;
+  flex: none;
+}
+
+.single-turn-model-settings-button {
+  min-width: 34px;
+  min-height: 34px;
+  margin-bottom: 1px;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+}
+
+.single-turn-model-settings-panel {
+  position: absolute;
+  top: calc(100% + 9px);
+  left: 0;
+  z-index: 40;
+  width: min(360px, calc(100vw - 64px));
+  padding: 10px;
+  border: 1px solid rgba(129, 140, 248, 0.45);
+  border-radius: 10px;
+  background: rgba(18, 21, 29, 0.99);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
+}
+
+.single-turn-model-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.single-turn-model-settings-panel .btn-icon {
+  padding: 4px;
 }
 
 .single-turn-preset-controls {

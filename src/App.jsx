@@ -7,8 +7,11 @@ import FloatingSingleTurnRunner from './components/FloatingSingleTurnRunner';
 import AutoGenerationSettingsModal from './components/AutoGenerationSettingsModal';
 import ModelConfigOptions from './components/ModelConfigOptions';
 import GoldenSetAIGenerator from './components/GoldenSetAIGenerator';
+import FullTestConfigModal from './components/FullTestConfigModal';
+import FullTestWorkspace from './components/FullTestWorkspace';
 import { CONVERSATION_CHAT_CASES, CONVERSATION_CHAT_CASES_VERSION } from './data/conversationChatCases';
 import { ENGLISH_QUOTES } from './data/englishQuotes';
+import { DEFAULT_VALIDATION_CRITERIA } from './data/validationCriteria';
 import * as XLSX from 'xlsx';
 
 const DEFAULT_ACTIVITIES = [
@@ -74,6 +77,14 @@ const normalizeTestCaseCategory = (category) => {
 const createBulkCaseRows = (count = 1) => Array.from({ length: count }, () => ({
   id: crypto.randomUUID(), category: '정상 케이스', userInput: '', description: ''
 }));
+
+const createEmptyFullTestPlan = () => ({
+  id: '',
+  prompts: [],
+  single: { modelId: 'gemini-3.5-flash-lite', repeatCount: 1 },
+  aiEvaluation: true,
+  criteriaIds: DEFAULT_VALIDATION_CRITERIA.map(criterion => criterion.id),
+});
 
 const applyConversationChatCaseSet = (sets = []) => sets.map(set => {
   if (set.id !== 'meet-character-conversation' || set.testCaseVersion === CONVERSATION_CHAT_CASES_VERSION) {
@@ -193,7 +204,23 @@ function App() {
   const [testHistory, setTestHistory] = useState([]);
 
   // Auto Mode States
-  const [activeMode, setActiveMode] = useState('manual'); // 'goldenset' | 'manual' | 'auto'
+  const [activeMode, setActiveMode] = useState('manual'); // 'goldenset' | 'manual' | 'fulltest' | 'auto'
+  const [fullTestPlan, setFullTestPlan] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ai-prompt-full-test-plan')) || createEmptyFullTestPlan(); } catch { return createEmptyFullTestPlan(); }
+  });
+  const [validationCriteria, setValidationCriteria] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('ai-prompt-validation-criteria'));
+      if (!Array.isArray(saved)) return DEFAULT_VALIDATION_CRITERIA;
+      const custom = saved.filter(criterion => !DEFAULT_VALIDATION_CRITERIA.some(defaultCriterion => defaultCriterion.id === criterion.id));
+      return DEFAULT_VALIDATION_CRITERIA.map(defaultCriterion => ({ ...defaultCriterion, ...(saved.find(criterion => criterion.id === defaultCriterion.id) || {}) })).concat(custom);
+    } catch { return DEFAULT_VALIDATION_CRITERIA; }
+  });
+  const [isFullTestConfigOpen, setIsFullTestConfigOpen] = useState(false);
+  const [fullTestResults, setFullTestResults] = useState([]);
+  const [fullTestIsRunning, setFullTestIsRunning] = useState(false);
+  const [fullTestProgress, setFullTestProgress] = useState({ current: 0, total: 0, percentage: 0, statusText: '', elapsedSeconds: 0, estimatedRequests: 0 });
+  const fullTestAbortRef = useRef(false);
   const [batchRows, setBatchRows] = useState([]);
   const [batchHeaders, setBatchHeaders] = useState([]);
   const [batchFilename, setBatchFilename] = useState('');
@@ -338,6 +365,14 @@ function App() {
       };
     });
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('ai-prompt-full-test-plan', JSON.stringify(fullTestPlan));
+  }, [fullTestPlan]);
+
+  useEffect(() => {
+    localStorage.setItem('ai-prompt-validation-criteria', JSON.stringify(validationCriteria));
+  }, [validationCriteria]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3283,6 +3318,95 @@ function App() {
     );
   };
 
+  const getFullTestCases = (scenario, config) => {
+    const cases = scenario.testCases || [];
+    if (config.caseScope === 'error') return cases.filter(testCase => normalizeTestCaseCategory(testCase.category) === '오류 케이스');
+    if (config.caseScope === 'selected') return cases.filter(testCase => config.caseIds.includes(testCase.id));
+    return cases;
+  };
+
+  const getFullTestJobs = () => fullTestPlan.prompts.flatMap(config => {
+    const scenario = goldenSets.find(item => item.id === config.scenarioId);
+    if (!scenario) return [];
+    return getFullTestCases(scenario, config).flatMap(testCase => {
+      if (config.mode === 'multi') return [{ scenario, config, testCase, repeatIndex: 1 }];
+      return Array.from({ length: fullTestPlan.single.repeatCount }, (_, index) => ({ scenario, config, testCase, repeatIndex: index + 1 }));
+    });
+  });
+
+  const getFullTestRequestEstimate = () => {
+    const jobs = getFullTestJobs();
+    const targetRequests = jobs.reduce((total, job) => total + (job.config.mode === 'multi' ? job.config.multiTurn.turnCount : 1), 0);
+    const generatedMessages = jobs.reduce((total, job) => total + (job.config.mode === 'multi' ? Math.max(0, job.config.multiTurn.turnCount - 1) : 0), 0);
+    const evaluationRequests = fullTestPlan.aiEvaluation && fullTestPlan.criteriaIds.length > 0 ? jobs.length : 0;
+    return { jobs, targetRequests, generatedMessages, evaluationRequests, total: targetRequests + generatedMessages + evaluationRequests };
+  };
+
+  const resolveFullTestPrompt = scenario => (scenario.systemPrompt || '').replace(/{{\s*([^}]+?)\s*}}/g, (match, key) => promptVariables[key.trim()] ?? '');
+
+  const handleRunFullTest = async () => {
+    const estimate = getFullTestRequestEstimate();
+    if (estimate.jobs.length === 0) {
+      alert('선택한 프롬프트에 실행할 테스트 케이스가 없습니다.');
+      return;
+    }
+    fullTestAbortRef.current = false;
+    setFullTestIsRunning(true);
+    setFullTestResults([]);
+    const startedAt = Date.now();
+    setFullTestProgress({ current: 0, total: estimate.jobs.length, percentage: 0, statusText: '전체 테스트 준비 중', elapsedSeconds: 0, estimatedRequests: estimate.total });
+    const nextResults = [];
+    try {
+      for (let index = 0; index < estimate.jobs.length; index += 1) {
+        if (fullTestAbortRef.current) break;
+        const job = estimate.jobs[index];
+        const modelId = job.config.mode === 'multi' ? job.config.multiTurn.modelId : fullTestPlan.single.modelId;
+        const model = AVAILABLE_MODELS.find(item => item.id === modelId);
+        const finalPrompt = resolveFullTestPrompt(job.scenario);
+        setFullTestProgress(previous => ({ ...previous, current: index, percentage: Math.round((index / estimate.jobs.length) * 100), elapsedSeconds: Math.round((Date.now() - startedAt) / 1000), statusText: `${job.scenario.title || job.scenario.name || '프롬프트'} · ${index + 1}/${estimate.jobs.length} 실행 중` }));
+        try {
+          let history = [];
+          const turns = [];
+          const turnCount = job.config.mode === 'multi' ? job.config.multiTurn.turnCount : 1;
+          let userInput = job.testCase.userInput;
+          for (let turnIndex = 0; turnIndex < turnCount; turnIndex += 1) {
+            const completion = await fetchAICompletion(modelId, [...history, { role: 'user', content: userInput }], finalPrompt, getMultiTurnRunOptions(modelId));
+            const response = completion.text;
+            turns.push({ id: crypto.randomUUID(), userInput, response, responseTimeMs: completion.responseTimeMs });
+            history = [...history, { role: 'user', content: userInput }, { role: 'assistant', content: response }];
+            if (job.config.mode === 'multi' && turnIndex < turnCount - 1) {
+              const generated = await fetchAICompletion(autoGenerationSettings.modelId, [...history, { role: 'user', content: 'Generate the next short student message. Continue this conversation naturally. Return only the student message.' }], 'You simulate a child student. Use the conversation context, continue naturally, and return only one short student message without labels or explanation.', getMultiTurnRunOptions(autoGenerationSettings.modelId));
+              userInput = cleanGeneratedStudentMessage(generated.text);
+              if (!userInput) break;
+            }
+          }
+          const result = { id: crypto.randomUUID(), scenarioId: job.scenario.id, activityName: job.scenario.activityName || '미분류', promptTitle: job.scenario.title || job.scenario.name || '제목 없는 프롬프트', mode: job.config.mode, modelId, modelName: model?.name || modelId, caseId: job.testCase.id, caseCategory: job.testCase.category, caseInput: job.testCase.userInput, repeatIndex: job.repeatIndex, turns, evaluation: null, error: '', startedAt, completedAt: Date.now() };
+          nextResults.push(result);
+          setFullTestResults([...nextResults]);
+        } catch (error) {
+          const result = { id: crypto.randomUUID(), scenarioId: job.scenario.id, activityName: job.scenario.activityName || '미분류', promptTitle: job.scenario.title || job.scenario.name || '제목 없는 프롬프트', mode: job.config.mode, modelId, modelName: model?.name || modelId, caseId: job.testCase.id, caseCategory: job.testCase.category, caseInput: job.testCase.userInput, repeatIndex: job.repeatIndex, turns: [], evaluation: null, error: error.message || '실행 오류', startedAt, completedAt: Date.now() };
+          nextResults.push(result);
+          setFullTestResults([...nextResults]);
+        }
+        setFullTestProgress(previous => ({ ...previous, current: index + 1, percentage: Math.round(((index + 1) / estimate.jobs.length) * 100), elapsedSeconds: Math.round((Date.now() - startedAt) / 1000) }));
+      }
+    } finally {
+      const stopped = fullTestAbortRef.current;
+      setFullTestProgress(previous => ({ ...previous, percentage: stopped ? previous.percentage : 100, elapsedSeconds: Math.round((Date.now() - startedAt) / 1000), statusText: stopped ? '사용자가 실행을 중지했습니다.' : (fullTestPlan.aiEvaluation ? '응답 실행 완료 · AI 평가 연결 대기' : '전체 테스트 완료') }));
+      setFullTestIsRunning(false);
+    }
+  };
+
+  const handleExportFullTestExcel = () => {
+    if (fullTestResults.length === 0) return;
+    const rows = fullTestResults.flatMap(result => result.turns.length > 0 ? result.turns.map((turn, index) => ({
+      Activity: result.activityName, 프롬프트: result.promptTitle, 방식: result.mode === 'multi' ? '멀티턴' : '싱글턴', 모델: result.modelName, '테스트 케이스 분류': result.caseCategory, '시작 케이스': result.caseInput, 턴: index + 1, 입력: turn.userInput, 응답: turn.response, '응답 시간(ms)': turn.responseTimeMs, '실행 상태': result.error ? '오류' : (result.evaluation?.passed === false ? '실패' : (result.evaluation ? '통과' : '미평가')), '평가 요약': result.evaluation?.summary || '', 오류: result.error || ''
+    })) : [{ Activity: result.activityName, 프롬프트: result.promptTitle, 방식: result.mode === 'multi' ? '멀티턴' : '싱글턴', 모델: result.modelName, '테스트 케이스 분류': result.caseCategory, '시작 케이스': result.caseInput, 턴: '', 입력: '', 응답: '', '응답 시간(ms)': '', '실행 상태': '오류', '평가 요약': '', 오류: result.error || '' }]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), 'Comparison Results');
+    XLSX.writeFile(workbook, `full-test-results-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   const renderOptimizationWorkspace = () => (
     <>
       {renderOptimizationStepNav()}
@@ -3548,6 +3672,12 @@ function App() {
           onClick={() => setActiveMode('manual')}
         >
           💬 단건 테스트
+        </button>
+        <button
+          className={`tab-btn ${activeMode === 'fulltest' ? 'active' : ''}`}
+          onClick={() => setActiveMode('fulltest')}
+        >
+          🧪 전체 테스트
         </button>
         <button
           className={`tab-btn ${activeMode === 'auto' ? 'active' : ''}`}
@@ -4322,6 +4452,31 @@ function App() {
             </>
           )}
         </>
+        ) : activeMode === 'fulltest' ? (
+          <>
+            <FullTestWorkspace
+              plan={fullTestPlan}
+              goldenSets={goldenSets}
+              criteria={validationCriteria}
+              results={fullTestResults}
+              progress={fullTestProgress}
+              isRunning={fullTestIsRunning}
+              onOpenConfig={() => setIsFullTestConfigOpen(true)}
+              onRun={handleRunFullTest}
+              onStop={() => { fullTestAbortRef.current = true; }}
+              onExport={handleExportFullTestExcel}
+            />
+            <FullTestConfigModal
+              isOpen={isFullTestConfigOpen}
+              goldenSets={goldenSets}
+              models={AVAILABLE_MODELS}
+              criteria={validationCriteria}
+              initialPlan={fullTestPlan}
+              onClose={() => setIsFullTestConfigOpen(false)}
+              onSave={plan => { setFullTestPlan(plan); setIsFullTestConfigOpen(false); }}
+              onCriteriaUpdate={setValidationCriteria}
+            />
+          </>
         ) : activeMode === 'auto' ? (
           renderOptimizationWorkspace()
         ) : (

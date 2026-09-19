@@ -627,14 +627,7 @@ function App() {
   };
 
   const handleFloatingModelChange = (modelId) => {
-    const model = AVAILABLE_MODELS.find(item => item.id === modelId);
     setSelectedModels(modelId ? [modelId] : []);
-    if (model?.defaultThinkingLevel) {
-      setModelConfigs(previous => ({
-        ...previous,
-        [modelId]: { ...previous[modelId], thinkingLevel: model.defaultThinkingLevel }
-      }));
-    }
   };
 
   const getMultiTurnSessionTemplates = () => selectedModels.flatMap(modelId =>

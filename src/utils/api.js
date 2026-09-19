@@ -45,10 +45,10 @@ export const AVAILABLE_MODELS = [
   { id: 'gpt-5.6-luna', realId: 'gpt-5.6-luna', name: 'GPT 5.6 Luna', provider: 'OpenAI', supportsTemperature: false, supportsReasoningEffort: true, supportsVerbosity: true },
   { id: 'gpt-5.4-nano', realId: 'gpt-5.4-nano', name: 'GPT 5.4 nano', provider: 'OpenAI', supportsTemperature: false, supportsReasoningEffort: true, supportsVerbosity: true },
   { id: 'gpt-5.4-mini', realId: 'gpt-5.4-mini', name: 'GPT 5.4 mini', provider: 'OpenAI', supportsTemperature: false, supportsReasoningEffort: true, supportsVerbosity: true },
-  { id: 'gemini-3-flash', realId: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', provider: 'Google', supportsTemperature: true, supportsReasoningEffort: false },
-  { id: 'gemini-3.8-flash', realId: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'Google', supportsTemperature: true, supportsReasoningEffort: false, thinkingLevels: ['low', 'medium', 'high'], defaultThinkingLevel: 'medium' },
-  { id: 'gemini-3.1-flash-lite', realId: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash-Lite', provider: 'Google', supportsTemperature: true, supportsReasoningEffort: false },
-  { id: 'gemini-3.5-flash-lite', realId: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite', provider: 'Google', supportsTemperature: true, supportsReasoningEffort: false }
+  { id: 'gemini-3-flash', realId: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', provider: 'Google', supportsTemperature: true, supportsReasoningEffort: false, thinkingLevels: ['minimal', 'low', 'medium', 'high'], defaultThinkingLevel: 'minimal' },
+  { id: 'gemini-3.8-flash', realId: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'Google', supportsTemperature: true, supportsReasoningEffort: false, thinkingLevels: ['low', 'medium', 'high'], defaultThinkingLevel: 'low' },
+  { id: 'gemini-3.1-flash-lite', realId: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash-Lite', provider: 'Google', supportsTemperature: true, supportsReasoningEffort: false, thinkingLevels: ['minimal', 'low', 'medium', 'high'], defaultThinkingLevel: 'minimal' },
+  { id: 'gemini-3.5-flash-lite', realId: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite', provider: 'Google', supportsTemperature: true, supportsReasoningEffort: false, thinkingLevels: ['minimal', 'low', 'medium', 'high'], defaultThinkingLevel: 'minimal' }
 ];
 
 export const fetchAICompletion = async (modelId, messages, systemPrompt, options = {}) => {

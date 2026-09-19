@@ -17,6 +17,8 @@ dist-ssr
 data/
 !src/data/
 !src/data/*.js
+!data/
+!data/shared-prompt-data.json
 
 # Editor directories and files
 .vscode/*

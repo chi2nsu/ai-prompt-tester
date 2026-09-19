@@ -4,15 +4,42 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const dataFile = resolve(dirname(fileURLToPath(import.meta.url)), 'data', 'prompt-tester.json')
+const projectRoot = dirname(fileURLToPath(import.meta.url))
+const dataFile = resolve(projectRoot, 'data', 'prompt-tester.json')
+const sharedDataFile = resolve(projectRoot, 'data', 'shared-prompt-data.json')
+
+const emptyData = {
+  savedMappings: [],
+  goldenSets: [],
+  optimizationVersions: [],
+}
+
+function hasPromptData(data) {
+  return Array.isArray(data?.savedMappings) && data.savedMappings.length > 0
+    || Array.isArray(data?.goldenSets) && data.goldenSets.length > 0
+}
 
 async function readLocalData() {
   try {
     return JSON.parse(await readFile(dataFile, 'utf8'))
   } catch (error) {
-    if (error.code === 'ENOENT') return {}
+    if (error.code === 'ENOENT') return emptyData
     throw error
   }
+}
+
+async function readSharedData() {
+  try {
+    return JSON.parse(await readFile(sharedDataFile, 'utf8'))
+  } catch (error) {
+    if (error.code === 'ENOENT') return emptyData
+    throw error
+  }
+}
+
+async function readInitialData() {
+  const localData = await readLocalData()
+  return hasPromptData(localData) ? localData : readSharedData()
 }
 
 function localDataPlugin() {
@@ -23,7 +50,7 @@ function localDataPlugin() {
         try {
           if (req.method === 'GET') {
             res.setHeader('Content-Type', 'application/json')
-            res.end(JSON.stringify(await readLocalData()))
+            res.end(JSON.stringify(await readInitialData()))
             return
           }
 

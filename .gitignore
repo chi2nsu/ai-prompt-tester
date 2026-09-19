@@ -15,6 +15,8 @@ dist-ssr
 .env.*
 !.env.example
 data/
+!data/
+!data/shared-prompt-data.json
 
 # Editor directories and files
 .vscode/*

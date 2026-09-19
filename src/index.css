@@ -810,7 +810,7 @@ select:focus {
 
 .multi-turn-float-compose {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 10px;
@@ -1539,6 +1539,13 @@ select:focus {
   .single-turn-float .multi-turn-float-actions {
     grid-column: auto;
     align-items: stretch;
+  }
+}
+
+@media (min-width: 701px) {
+  .multi-turn-float-panel {
+    height: 220px;
+    overflow-y: auto;
   }
 }
 

@@ -48,7 +48,7 @@ export default function FloatingSingleTurnRunner({
                   </select>
                 </label>
                 <button type="button" className="btn-icon single-turn-model-settings-button" onClick={() => setIsModelSettingsOpen(previous => !previous)} disabled={isRunning} aria-expanded={isModelSettingsOpen} aria-label="모델 전송 설정" title="모델 전송 설정">⚙</button>
-                {isModelSettingsOpen && selectedModel && <div className="single-turn-model-settings-panel">
+                {isModelSettingsOpen && selectedModel && <div className="single-turn-model-settings-panel" role="dialog" aria-label={`${selectedModel.name} 전송 설정`}>
                   <div className="single-turn-model-settings-header"><strong>{selectedModel.name} 전송 설정</strong><button type="button" className="btn-icon" onClick={() => setIsModelSettingsOpen(false)} aria-label="모델 설정 닫기">✕</button></div>
                   <ModelConfigOptions model={selectedModel} config={modelConfig} onChange={onModelConfigChange} disabled={isRunning} />
                 </div>}

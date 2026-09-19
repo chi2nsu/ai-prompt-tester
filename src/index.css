@@ -675,15 +675,28 @@ select:focus {
 
 .single-turn-model-settings-panel {
   position: absolute;
-  top: calc(100% + 9px);
+  bottom: calc(100% + 10px);
   left: 0;
   z-index: 40;
-  width: min(360px, calc(100vw - 64px));
+  width: min(340px, calc(100vw - 64px));
   padding: 10px;
   border: 1px solid rgba(129, 140, 248, 0.45);
   border-radius: 10px;
   background: rgba(18, 21, 29, 0.99);
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
+}
+
+.single-turn-model-settings-panel::after {
+  position: absolute;
+  bottom: -7px;
+  left: 18px;
+  width: 12px;
+  height: 12px;
+  content: '';
+  border-right: 1px solid rgba(129, 140, 248, 0.45);
+  border-bottom: 1px solid rgba(129, 140, 248, 0.45);
+  background: rgba(18, 21, 29, 0.99);
+  transform: rotate(45deg);
 }
 
 .single-turn-model-settings-header {

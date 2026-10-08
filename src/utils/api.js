@@ -55,143 +55,26 @@ export const AVAILABLE_MODELS = [
 export const fetchAICompletion = async (modelId, messages, systemPrompt, options = {}) => {
   const modelInfo = AVAILABLE_MODELS.find(m => m.id === modelId);
   if (!modelInfo) throw new Error('Unknown model');
-
-  const openAiKey = import.meta.env.VITE_OPENAI_API_KEY;
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-
-  if (modelInfo.provider === 'OpenAI') {
-    if (!openAiKey) {
-      throw new Error("OpenAI API Key is missing. Please add VITE_OPENAI_API_KEY to your .env file.");
-    }
-    
-    let payload = {
-      model: modelInfo.realId,
-      messages: [
-        ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
-        ...messages
-      ]
-    };
-
-    if (modelInfo.supportsTemperature) {
-      payload.temperature = options.temperature !== undefined ? options.temperature : 0.7;
-    }
-    
-    if (modelInfo.supportsReasoningEffort && options.reasoningEffort && options.reasoningEffort !== 'none') {
-      payload.reasoning_effort = options.reasoningEffort;
-    }
-    if (modelInfo.supportsVerbosity && options.verbosity && options.verbosity !== 'none') {
-      payload.verbosity = options.verbosity;
-    }
-
-    const start = Date.now();
-    recordApiRequest({ modelId, provider: modelInfo.provider });
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openAiKey}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error?.message || 'Failed to fetch from OpenAI');
-    }
-
-    const data = await response.json();
-    recordApiUsage({
-      modelId,
-      inputTokens: data.usage?.prompt_tokens || 0,
-      outputTokens: data.usage?.completion_tokens || 0,
-      totalTokens: data.usage?.total_tokens || 0,
-    });
-    const end = Date.now();
-    return {
-      id: crypto.randomUUID(),
-      modelId,
-      text: data.choices[0].message.content,
-      responseTimeMs: end - start,
-      timestamp: Date.now()
-    };
-  } 
-
-  if (modelInfo.provider === 'Google') {
-    if (!geminiKey) {
-      throw new Error("Gemini API Key is missing. Please add VITE_GEMINI_API_KEY to your .env file.");
-    }
-
-    let generationConfig = {};
-    if (modelInfo.supportsTemperature) {
-      generationConfig.temperature = options.temperature !== undefined ? options.temperature : 0.7;
-    }
-
-    if (options.geminiThinkingLevel && options.geminiThinkingLevel !== 'none') {
-        generationConfig.thinkingConfig = {
-            thinkingLevel: options.geminiThinkingLevel
-        };
-    }
-
-    const bodyStructure = {
-      // Gemini requires at least one content item. A blank item lets prompt-only tests run
-      // without adding a user message or changing the resolved system instructions.
-      contents: (messages.length > 0 ? messages : [{ role: 'user', content: ' ' }]).map(msg => ({
-        role: msg.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: msg.content }]
-      })),
-      generationConfig: generationConfig
-    };
-
-    let finalSystemPrompt = systemPrompt || '';
-
-    if (finalSystemPrompt) {
-      bodyStructure.systemInstruction = {
-        parts: [{ text: finalSystemPrompt }]
-      };
-    }
-
-    const start = Date.now();
-    recordApiRequest({ modelId, provider: modelInfo.provider });
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelInfo.realId}:generateContent?key=${geminiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(bodyStructure)
-    });
-
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error?.message || 'Failed to fetch from Google Gemini');
-    }
-
-    const data = await response.json();
-    recordApiUsage({
-      modelId,
-      inputTokens: data.usageMetadata?.promptTokenCount || 0,
-      outputTokens: (data.usageMetadata?.candidatesTokenCount || 0) + (data.usageMetadata?.thoughtsTokenCount || 0),
-      totalTokens: data.usageMetadata?.totalTokenCount || 0,
-    });
-    const end = Date.now();
-    return {
-      id: crypto.randomUUID(),
-      modelId,
-      text: data.candidates?.[0]?.content?.parts?.[0]?.text || "No response content",
-      responseTimeMs: end - start,
-      timestamp: Date.now()
-    };
-  }
-
-  throw new Error("Unsupported provider");
+  const start = Date.now();
+  recordApiRequest({ modelId, provider: modelInfo.provider });
+  const response = await fetch('/api/model', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ modelId, messages, systemPrompt, options }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Model request failed.');
+  recordApiUsage({ modelId, ...data.usage });
+  return {
+    id: crypto.randomUUID(),
+    modelId,
+    text: data.text || 'No response content',
+    responseTimeMs: Date.now() - start,
+    timestamp: Date.now(),
+  };
 };
 
 export const evaluateAIResponse = async (generatedText, userInput, systemPrompt) => {
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!geminiKey) {
-    console.warn("Gemini API Key is missing. Cannot run evaluateAIResponse.");
-    return null;
-  }
-
   const judgeSystemPrompt = `You are an Elementary EFL Education Expert and Prompt Analyst. 
 Evaluate the provided AI response based on the following 3 criteria (each scored out of 10.0 points):
 
@@ -297,39 +180,11 @@ ${generatedText}
 Please evaluate the AI response and return the expected JSON object.`;
  
   try {
-    const bodyStructure = {
-      contents: [{
-        role: 'user',
-        parts: [{ text: userMessage }]
-      }],
-      systemInstruction: {
-        parts: [{ text: judgeSystemPrompt }]
-      },
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: "application/json"
-      }
-    };
-
-    recordApiRequest({ modelId: 'gemini-3-flash', provider: 'Google' });
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${geminiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(bodyStructure)
+    const result = await fetchAICompletion('gemini-3-flash', [{ role: 'user', content: userMessage }], judgeSystemPrompt, {
+      temperature: 0.2,
+      responseMimeType: 'application/json',
     });
-
-    if (!response.ok) {
-      const errDetails = await response.json().catch(() => ({}));
-      throw new Error(errDetails.error?.message || 'Failed to fetch from Judge AI (Gemini)');
-    }
-
-    const data = await response.json();
-    recordApiUsage({ modelId: 'gemini-3-flash', inputTokens: data.usageMetadata?.promptTokenCount || 0, outputTokens: (data.usageMetadata?.candidatesTokenCount || 0) + (data.usageMetadata?.thoughtsTokenCount || 0), totalTokens: data.usageMetadata?.totalTokenCount || 0 });
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    const parsed = JSON.parse(resultText);
-    return parsed;
+    return JSON.parse(result.text || '{}');
   } catch (error) {
     console.error("Evaluation Error:", error);
     return null;
@@ -431,11 +286,6 @@ export const evaluateOutputWithRubric = async ({ candidate, metrics, judgeModelI
 };
 
 export const generatePromptImprovement = async ({ systemPrompt, variables = {}, testCases = [], evaluationSummary = '' }) => {
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!geminiKey) {
-    throw new Error('Gemini API Key is missing. Add VITE_GEMINI_API_KEY to use the improvement agent.');
-  }
-
   const prompt = `You are a senior prompt engineer improving an AI English tutor system prompt.
 Your goal is to improve measurable performance on the supplied fixed test set without weakening safety or ignoring the original instructional intent.
 
@@ -469,25 +319,11 @@ ${JSON.stringify(testCases.map(({ category, userInput, description }) => ({ cate
 Evaluation evidence from the baseline run:
 ${evaluationSummary}`;
 
-  recordApiRequest({ modelId: 'gemini-3-flash', provider: 'Google' });
-  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=' + geminiKey, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.25, responseMimeType: 'application/json' }
-    })
+  const result = await fetchAICompletion('gemini-3-flash', [{ role: 'user', content: prompt }], '', {
+    temperature: 0.25,
+    responseMimeType: 'application/json',
   });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.error?.message || 'Failed to generate an improved prompt.');
-  }
-
-  const data = await response.json();
-  recordApiUsage({ modelId: 'gemini-3-flash', inputTokens: data.usageMetadata?.promptTokenCount || 0, outputTokens: (data.usageMetadata?.candidatesTokenCount || 0) + (data.usageMetadata?.thoughtsTokenCount || 0), totalTokens: data.usageMetadata?.totalTokenCount || 0 });
-  const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-  const parsed = JSON.parse(resultText);
+  const parsed = JSON.parse(result.text || '{}');
   if (!parsed.proposedPrompt || typeof parsed.proposedPrompt !== 'string') {
     throw new Error('The improvement agent did not return a valid proposed prompt.');
   }
@@ -495,11 +331,6 @@ ${evaluationSummary}`;
 };
 
 export const generateAITestCases = async (systemPrompt, countPerCategory = 2, context = '', level = 'Intermediate', modelId = 'gemini-3-flash') => {
-  const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!geminiKey) {
-    throw new Error("Gemini API Key is missing. Please add VITE_GEMINI_API_KEY to your .env file.");
-  }
-
   const levelGuidelines = {
     Beginner: {
       cefr: 'Pre-A1 to A1',
@@ -563,37 +394,12 @@ Return the results in a valid JSON array of objects, where each object has:
 `;
 
   try {
-    const bodyStructure = {
-      contents: [{
-        role: 'user',
-        parts: [{ text: prompt }]
-      }],
-      generationConfig: {
-        temperature: 0.7,
-        responseMimeType: "application/json"
-      }
-    };
-
     const model = AVAILABLE_MODELS.find(item => item.id === modelId && item.provider === 'Google') || AVAILABLE_MODELS.find(item => item.id === 'gemini-3-flash');
-    recordApiRequest({ modelId: model.id, provider: 'Google' });
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model.realId}:generateContent?key=${geminiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(bodyStructure)
+    const result = await fetchAICompletion(model.id, [{ role: 'user', content: prompt }], '', {
+      temperature: 0.7,
+      responseMimeType: 'application/json',
     });
-
-    if (!response.ok) {
-      const errDetails = await response.json().catch(() => ({}));
-      throw new Error(errDetails.error?.message || 'Failed to fetch from Gemini for Test Case Generation');
-    }
-
-    const data = await response.json();
-    recordApiUsage({ modelId: model.id, inputTokens: data.usageMetadata?.promptTokenCount || 0, outputTokens: (data.usageMetadata?.candidatesTokenCount || 0) + (data.usageMetadata?.thoughtsTokenCount || 0), totalTokens: data.usageMetadata?.totalTokenCount || 0 });
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-    const parsed = JSON.parse(resultText);
-    return parsed;
+    return JSON.parse(result.text || '[]');
   } catch (error) {
     console.error("Test Case Generation Error:", error);
     throw error;

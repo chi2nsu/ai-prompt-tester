@@ -1,8 +1,9 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import modelHandler from './api/model.js'
 
 const projectRoot = dirname(fileURLToPath(import.meta.url))
 const dataFile = resolve(projectRoot, 'data', 'prompt-tester.json')
@@ -46,6 +47,7 @@ function localDataPlugin() {
   return {
     name: 'local-data-store',
     configureServer(server) {
+      server.middlewares.use('/api/model', (req, res) => modelHandler(req, res))
       server.middlewares.use('/api/local-data', async (req, res) => {
         try {
           if (req.method === 'GET') {
@@ -88,6 +90,14 @@ function localDataPlugin() {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), localDataPlugin()],
+export default defineConfig(({ mode }) => {
+  // Vite keeps .env values out of process.env by default. These keys are read
+  // only by the development server and are never sent to the browser bundle.
+  const env = loadEnv(mode, projectRoot, '')
+  if (!env.OPENAI_API_KEY && env.VITE_OPENAI_API_KEY) env.OPENAI_API_KEY = env.VITE_OPENAI_API_KEY
+  if (!env.GEMINI_API_KEY && env.VITE_GEMINI_API_KEY) env.GEMINI_API_KEY = env.VITE_GEMINI_API_KEY
+  Object.assign(process.env, env)
+  return {
+    plugins: [react(), localDataPlugin()],
+  }
 })

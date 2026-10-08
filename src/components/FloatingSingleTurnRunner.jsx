@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import ModelConfigOptions from './ModelConfigOptions';
 
 export default function FloatingSingleTurnRunner({
@@ -26,7 +27,30 @@ export default function FloatingSingleTurnRunner({
   canRun,
 }) {
   const [isModelSettingsOpen, setIsModelSettingsOpen] = useState(false);
+  const [settingsAnchor, setSettingsAnchor] = useState(null);
+  const settingsButtonRef = useRef(null);
   const selectedModel = models.find(model => model.id === selectedModelId);
+
+  useEffect(() => {
+    if (!isModelSettingsOpen) return undefined;
+
+    const updateAnchor = () => {
+      const rect = settingsButtonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setSettingsAnchor({
+        top: rect.top - 10,
+        left: Math.min(Math.max(16, rect.left - 204), Math.max(16, window.innerWidth - 356)),
+      });
+    };
+
+    updateAnchor();
+    window.addEventListener('resize', updateAnchor);
+    window.addEventListener('scroll', updateAnchor, true);
+    return () => {
+      window.removeEventListener('resize', updateAnchor);
+      window.removeEventListener('scroll', updateAnchor, true);
+    };
+  }, [isModelSettingsOpen]);
 
   return (
     <aside className={`multi-turn-float single-turn-float ${isOpen ? 'is-open' : ''}`} aria-label="단건 평가 실행">
@@ -47,11 +71,11 @@ export default function FloatingSingleTurnRunner({
                     {models.map(model => <option key={model.id} value={model.id}>{model.name}</option>)}
                   </select>
                 </label>
-                <button type="button" className="btn-icon floating-model-settings-button" onClick={() => setIsModelSettingsOpen(previous => !previous)} disabled={isRunning} aria-expanded={isModelSettingsOpen} aria-label="모델 전송 설정" title="모델 전송 설정">⚙</button>
-                {isModelSettingsOpen && selectedModel && <div className="floating-model-settings-panel" role="dialog" aria-label={`${selectedModel.name} 전송 설정`}>
+                <button ref={settingsButtonRef} type="button" className="btn-icon floating-model-settings-button" onClick={() => setIsModelSettingsOpen(previous => !previous)} disabled={isRunning} aria-expanded={isModelSettingsOpen} aria-label="모델 전송 설정" title="모델 전송 설정">⚙</button>
+                {isModelSettingsOpen && selectedModel && settingsAnchor && createPortal(<div className="floating-model-settings-panel floating-model-settings-popover" style={settingsAnchor} role="dialog" aria-label={`${selectedModel.name} 전송 설정`}>
                   <div className="floating-model-settings-header"><strong>{selectedModel.name} 전송 설정</strong><button type="button" className="btn-icon" onClick={() => setIsModelSettingsOpen(false)} aria-label="모델 설정 닫기">✕</button></div>
                   <ModelConfigOptions model={selectedModel} config={modelConfig} onChange={onModelConfigChange} disabled={isRunning} />
-                </div>}
+                </div>, document.body)}
               </div>
               <label className="multi-turn-float-session-count">
                 <span>모델 진행 수</span>

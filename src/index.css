@@ -688,6 +688,14 @@ select:focus {
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
 }
 
+/* Rendered in a portal so the floating runner's scroll area cannot clip it. */
+.floating-model-settings-popover {
+  position: fixed;
+  bottom: auto;
+  z-index: 1300;
+  transform: translateY(-100%);
+}
+
 .floating-model-settings-panel::after {
   position: absolute;
   bottom: -7px;

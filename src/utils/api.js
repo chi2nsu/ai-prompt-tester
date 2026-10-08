@@ -42,6 +42,7 @@ export const recordApiUsage = ({ modelId, inputTokens = 0, outputTokens = 0, tot
 });
 
 export const AVAILABLE_MODELS = [
+  { id: 'gpt-6-luna', realId: 'gpt-6-luna', name: 'GPT 6 Luna', provider: 'OpenAI', supportsTemperature: false, supportsReasoningEffort: true, supportsVerbosity: false },
   { id: 'gpt-5.6-luna', realId: 'gpt-5.6-luna', name: 'GPT 5.6 Luna', provider: 'OpenAI', supportsTemperature: false, supportsReasoningEffort: true, supportsVerbosity: true },
   { id: 'gpt-5.4-nano', realId: 'gpt-5.4-nano', name: 'GPT 5.4 nano', provider: 'OpenAI', supportsTemperature: false, supportsReasoningEffort: true, supportsVerbosity: true },
   { id: 'gpt-5.4-mini', realId: 'gpt-5.4-mini', name: 'GPT 5.4 mini', provider: 'OpenAI', supportsTemperature: false, supportsReasoningEffort: true, supportsVerbosity: true },

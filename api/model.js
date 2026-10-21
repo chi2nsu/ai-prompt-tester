@@ -3,6 +3,11 @@ const MODELS = {
   'gpt-5.6-luna': { realId: 'gpt-5.6-luna', provider: 'openai', supportsReasoningEffort: true, supportsVerbosity: true },
   'gpt-5.4-nano': { realId: 'gpt-5.4-nano', provider: 'openai', supportsReasoningEffort: true, supportsVerbosity: true },
   'gpt-5.4-mini': { realId: 'gpt-5.4-mini', provider: 'openai', supportsReasoningEffort: true, supportsVerbosity: true },
+  'gpt-4o-2024-05-13': { realId: 'gpt-4o-2024-05-13', provider: 'openai', supportsTemperature: true },
+  'gpt-4o-2024-11-20': { realId: 'gpt-4o-2024-11-20', provider: 'openai', supportsTemperature: true },
+  'gpt-4o-mini-2024-07-18': { realId: 'gpt-4o-mini-2024-07-18', provider: 'openai', supportsTemperature: true },
+  'gpt-4.1-2025-04-14': { realId: 'gpt-4.1-2025-04-14', provider: 'openai', supportsTemperature: true },
+  'gpt-4.1-mini-2025-04-14': { realId: 'gpt-4.1-mini-2025-04-14', provider: 'openai', supportsTemperature: true },
   'gemini-3-flash': { realId: 'gemini-3-flash-preview', provider: 'google' },
   'gemini-3.8-flash': { realId: 'gemini-3.8-flash', provider: 'google' },
   'gemini-3.1-flash-lite': { realId: 'gemini-3.1-flash-lite', provider: 'google' },
@@ -54,6 +59,7 @@ export default async function handler(request, response) {
           ...messages,
         ],
       };
+      if (model.supportsTemperature && typeof options.temperature === 'number') payload.temperature = options.temperature;
       if (model.supportsReasoningEffort && options.reasoningEffort && options.reasoningEffort !== 'none') payload.reasoning_effort = options.reasoningEffort;
       if (model.supportsVerbosity && options.verbosity && options.verbosity !== 'none') payload.verbosity = options.verbosity;
 

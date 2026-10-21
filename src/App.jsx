@@ -21,7 +21,13 @@ const DEFAULT_ACTIVITIES = [
   'Describe a Picture',
   'Sentence Building',
   'Book Report',
-  'Review Quiz'
+  'Review Quiz',
+  'BOOK',
+  'CHAT INSTANT FEEDBACK',
+  'GRAMMAR CHECK',
+  'LAURA LEVEL',
+  'SNAP WRITE',
+  'STORY DIVE'
 ];
 
 const TEST_CASE_CATEGORIES = ['정상 케이스', '오류 케이스', '엣지 케이스', '안정성 케이스'];
@@ -325,6 +331,8 @@ function App() {
   const [showPresetCreate, setShowPresetCreate] = useState(false);
   const [presetPendingDelete, setPresetPendingDelete] = useState(null);
   const [isCommonVariableManagerOpen, setIsCommonVariableManagerOpen] = useState(false);
+  const [commonVariableManagerScenarioId, setCommonVariableManagerScenarioId] = useState('');
+  const [commonVariableManagerKeys, setCommonVariableManagerKeys] = useState([]);
   const [commonVariableDraft, setCommonVariableDraft] = useState({});
   const [selectedCommonVariableKeys, setSelectedCommonVariableKeys] = useState([]);
   
@@ -699,6 +707,14 @@ function App() {
     setShowPresetCreate(false);
   };
 
+  const handleCreateNewPreset = () => {
+    // Creating a preset must always start a separate record, never edit the
+    // currently selected preset.
+    setPresetName('');
+    setPresetDescription('');
+    setShowPresetCreate(true);
+  };
+
   const handleLoadMapping = (mapping) => {
     setSelectedPresetId(mapping.id);
     setPromptVariables(mapping.variables || {});
@@ -735,9 +751,9 @@ function App() {
     localStorage.setItem('ai-prompt-mappings', JSON.stringify(updated));
   };
 
-  const openCommonVariableManager = (scenarioId) => {
+  const openCommonVariableManager = (scenarioId, variableKeys = uniqueManualVariables) => {
     const scenarioMappings = savedMappings.filter(mapping => mapping.scenarioId === scenarioId);
-    const draft = Object.fromEntries(uniqueManualVariables.map(key => {
+    const draft = Object.fromEntries(variableKeys.map(key => {
       const values = scenarioMappings.map(mapping => mapping.variables?.[key] ?? '');
       const hasSharedValue = values.length > 0 && values.every(value => value === values[0]);
       return [key, hasSharedValue ? values[0] : (promptVariables[key] ?? '')];
@@ -745,6 +761,8 @@ function App() {
 
     setCommonVariableDraft(draft);
     setSelectedCommonVariableKeys([]);
+    setCommonVariableManagerScenarioId(scenarioId);
+    setCommonVariableManagerKeys(variableKeys);
     setIsCommonVariableManagerOpen(true);
   };
 
@@ -802,8 +820,8 @@ function App() {
     <div className="mapping-presets" style={{ marginBottom: '14px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
         <label style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>변수 값 프리셋</label>
-        <button type="button" className="btn-icon" onClick={() => setShowPresetCreate(previous => !previous)} style={{ padding: '4px 8px', fontSize: '0.75rem' }}>
-          + 프리셋 추가
+        <button type="button" className="btn-icon" onClick={handleCreateNewPreset} style={{ padding: '4px 8px', fontSize: '0.75rem' }}>
+          + 신규 프리셋
         </button>
       </div>
       <select
@@ -4275,7 +4293,7 @@ function App() {
               </div>
 
               <p className="auto-generation-help">
-                체크한 변수만 현재 시나리오의 프리셋 {savedMappings.filter(mapping => mapping.scenarioId === manualActiveScenario.id).length}개에 같은 값으로 적용합니다.
+                체크한 변수만 현재 시나리오의 프리셋 {savedMappings.filter(mapping => mapping.scenarioId === commonVariableManagerScenarioId).length}개에 같은 값으로 적용합니다.
               </p>
 
               <div className="auto-generation-variables" style={{ marginTop: '16px' }}>
@@ -4284,15 +4302,15 @@ function App() {
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '0.78rem', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
-                      checked={uniqueManualVariables.length > 0 && selectedCommonVariableKeys.length === uniqueManualVariables.length}
-                      onChange={event => setSelectedCommonVariableKeys(event.target.checked ? [...uniqueManualVariables] : [])}
+                      checked={commonVariableManagerKeys.length > 0 && selectedCommonVariableKeys.length === commonVariableManagerKeys.length}
+                      onChange={event => setSelectedCommonVariableKeys(event.target.checked ? [...commonVariableManagerKeys] : [])}
                     />
-                    전체 선택 ({uniqueManualVariables.length})
+                    전체 선택 ({commonVariableManagerKeys.length})
                   </label>
                 </div>
                 <p><code>체크한 항목</code>만 기존 프리셋 값 위에 덮어씁니다.</p>
                 <div className="auto-generation-variable-list" style={{ maxHeight: '310px' }}>
-                  {uniqueManualVariables.map(key => (
+                  {commonVariableManagerKeys.map(key => (
                     <label key={key} style={{ gridTemplateColumns: 'auto minmax(100px, 0.5fr) minmax(0, 1fr)', padding: '7px', borderRadius: '6px', border: `1px solid ${selectedCommonVariableKeys.includes(key) ? 'rgba(129, 140, 248, 0.6)' : 'transparent'}`, background: selectedCommonVariableKeys.includes(key) ? 'rgba(99, 102, 241, 0.12)' : 'transparent' }}>
                       <input type="checkbox" checked={selectedCommonVariableKeys.includes(key)} onChange={() => handleToggleCommonVariableKey(key)} />
                       <span title={key}>{key}</span>
@@ -4314,8 +4332,8 @@ function App() {
                 <button
                   type="button"
                   className="btn-primary"
-                  onClick={() => applyCommonVariableValues(manualActiveScenario.id)}
-                  disabled={selectedCommonVariableKeys.length === 0 || savedMappings.filter(mapping => mapping.scenarioId === manualActiveScenario.id).length === 0}
+                  onClick={() => applyCommonVariableValues(commonVariableManagerScenarioId)}
+                  disabled={selectedCommonVariableKeys.length === 0 || savedMappings.filter(mapping => mapping.scenarioId === commonVariableManagerScenarioId).length === 0}
                 >
                   일괄 적용
                 </button>
@@ -4953,6 +4971,78 @@ function App() {
         ) : (
           /* Prompt Test Layout */
           <>
+            {isCommonVariableManagerOpen && (
+              <div
+                className="auto-generation-modal-backdrop"
+                role="presentation"
+                onMouseDown={event => {
+                  if (event.target === event.currentTarget) setIsCommonVariableManagerOpen(false);
+                }}
+              >
+                <section
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="golden-common-variable-manager-title"
+                  className="auto-generation-modal"
+                  onMouseDown={event => event.stopPropagation()}
+                >
+                  <div className="auto-generation-modal-header">
+                    <div>
+                      <span>VARIABLE MAPPING</span>
+                      <h3 id="golden-common-variable-manager-title">공통 변수 관리</h3>
+                    </div>
+                    <button type="button" className="btn-icon" onClick={() => setIsCommonVariableManagerOpen(false)} aria-label="공통 변수 관리 닫기">✕</button>
+                  </div>
+
+                  <p className="auto-generation-help">
+                    체크한 변수만 현재 시나리오의 프리셋 {savedMappings.filter(mapping => mapping.scenarioId === commonVariableManagerScenarioId).length}개에 같은 값으로 적용합니다.
+                  </p>
+
+                  <div className="auto-generation-variables" style={{ marginTop: '16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                      <span>일괄 적용할 변수</span>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '0.78rem', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={commonVariableManagerKeys.length > 0 && selectedCommonVariableKeys.length === commonVariableManagerKeys.length}
+                          onChange={event => setSelectedCommonVariableKeys(event.target.checked ? [...commonVariableManagerKeys] : [])}
+                        />
+                        전체 선택 ({commonVariableManagerKeys.length})
+                      </label>
+                    </div>
+                    <p><code>체크한 항목</code>만 기존 프리셋 값 위에 덮어씁니다.</p>
+                    <div className="auto-generation-variable-list" style={{ maxHeight: '310px' }}>
+                      {commonVariableManagerKeys.map(key => (
+                        <label key={key} style={{ gridTemplateColumns: 'auto minmax(100px, 0.5fr) minmax(0, 1fr)', padding: '7px', borderRadius: '6px', border: `1px solid ${selectedCommonVariableKeys.includes(key) ? 'rgba(129, 140, 248, 0.6)' : 'transparent'}`, background: selectedCommonVariableKeys.includes(key) ? 'rgba(99, 102, 241, 0.12)' : 'transparent' }}>
+                          <input type="checkbox" checked={selectedCommonVariableKeys.includes(key)} onChange={() => handleToggleCommonVariableKey(key)} />
+                          <span title={key}>{key}</span>
+                          <input
+                            type="text"
+                            value={commonVariableDraft[key] ?? ''}
+                            onChange={event => setCommonVariableDraft(previous => ({ ...previous, [key]: event.target.value }))}
+                            placeholder={`${key} 값`}
+                            disabled={!selectedCommonVariableKeys.includes(key)}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="auto-generation-help">선택됨: {selectedCommonVariableKeys.length}개 변수</p>
+                  <div className="auto-generation-modal-actions">
+                    <button type="button" className="btn-icon" onClick={() => setIsCommonVariableManagerOpen(false)}>취소</button>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => applyCommonVariableValues(commonVariableManagerScenarioId)}
+                      disabled={selectedCommonVariableKeys.length === 0 || savedMappings.filter(mapping => mapping.scenarioId === commonVariableManagerScenarioId).length === 0}
+                    >
+                      일괄 적용
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
             <div className="top-panel" style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '24px', alignItems: 'start' }}>
               {/* Column 1: Prompt Scenario Management (Sidebar Tree Directory) */}
               <div className="input-panel glass-panel scenario-sidebar" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', minHeight: '500px', backgroundColor: 'var(--surface-color)' }}>
@@ -5276,7 +5366,20 @@ function App() {
                   {/* Right Column: Variables & Presets */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', background: 'rgba(255,255,255,0.01)', padding: '16px', borderRadius: '8px', border: '1px solid var(--surface-border)', minHeight: '100%' }}>
                     <div>
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '12px', color: 'var(--text-muted)' }}>Variable Mapping Management</h4>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, margin: 0, color: 'var(--text-muted)' }}>Variable Mapping Management</h4>
+                        <button
+                          type="button"
+                          className="btn-icon"
+                          onClick={() => openCommonVariableManager(activeGoldenSet.id, uniqueGoldenVariables)}
+                          title="공통 변수 관리"
+                          aria-label="공통 변수 관리"
+                          disabled={activeGoldenSet.id === 'default' || uniqueGoldenVariables.length === 0}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 8px', fontSize: '0.76rem', whiteSpace: 'nowrap' }}
+                        >
+                          ⚙ 공통 변수 관리
+                        </button>
+                      </div>
                       {renderPresetSelector(activeGoldenSet.id)}
                       
                       <button
